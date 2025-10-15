@@ -1,1 +1,175 @@
+# ============================================================
+# Boletín de Notas MIPS — MARS 4.5  (a–j)
+# ============================================================
+
+.data
+# [h] Valores por defecto
+nota_parcial:      .word 60
+practicas:         .word 20
+peso_examen:       .word 2
+
+# [a] Entrada cadena
+buf_nombre:        .space 64
+
+# [d] Bono double
+bono:              .double 0.5
+
+# [i] Resultados
+res_total:         .word 0
+res_resta_demo:    .word 0
+res_promedio_base: .word 0
+res_resto_div:     .word 0
+res_letra:         .byte 0
+                   .align 2
+
+# Mensajes
+msj_pide_nombre:   .asciiz "Introduce tu nombre: "
+msj_pide_nota:     .asciiz "Introduce tu nota del examen (0-100): "
+msj_alumno:        .asciiz "\nAlumno: "
+msj_total:         .asciiz "\nTotal (entero): "
+msj_resta:         .asciiz "\nResta demo (total-10): "
+msj_prom_base:     .asciiz "\nPromedio base (entero): "
+msj_resto:         .asciiz "  |  Resto al dividir entre 3: "
+msj_prom_doble:    .asciiz "\nPromedio con bono (double): "
+msj_letra:         .asciiz "\nLetra final (caracter): "
+msj_fin:           .asciiz "\n\nFin del programa.\n"
+c_nl:              .byte 10
+                   .align 2
+
+.text
+.globl main
+
+main:
+    # [a] Leer nombre y nota
+    li $v0,4 ; la $a0,msj_pide_nombre ; syscall
+    li $v0,8 ; la $a0,buf_nombre ; li $a1,64 ; syscall
+    li $v0,4 ; la $a0,msj_pide_nota ; syscall
+    li $v0,5 ; syscall
+    move $s0,$v0                      # nota_examen
+
+    # [h] Cargar defaults
+    lw $t0,nota_parcial
+    lw $t1,practicas
+    lw $t2,peso_examen
+
+    # [g] Usar Operacion para mul nota_examen*peso
+    move $a0,$s0 ; move $a1,$t2 ; li $a2,2
+    addiu $sp,$sp,-4 ; sw $ra,0($sp)
+    jal Operacion
+    lw $ra,0($sp) ; addiu $sp,$sp,4
+    move $t3,$v0
+
+    # [b] Aritmética entera (+ - /)
+    addu $t4,$t0,$t1
+    addu $t4,$t4,$t3
+    sw $t4,res_total
+    addiu $t5,$t4,-10
+    sw $t5,res_resta_demo
+    li $t6,3
+    div $t4,$t6
+    mflo $s2                           # [e] LO
+    mfhi $t7                           # [e] HI (resto)
+    sw $s2,res_promedio_base
+    sw $t7,res_resto_div
+
+    # [d] Double: promedio + bono
+    mtc1 $s2,$f0
+    cvt.d.w $f2,$f0
+    l.d $f4,bono
+    add.d $f6,$f2,$f4
+
+    # [f] Clasificación A/B/C
+    li $t8,85
+    blt $s2,$t8,_menor85
+    li $t9,'A' ; sb $t9,res_letra ; b _clasfin
+_menor85:
+    li $t8,70
+    blt $s2,$t8,_ponerC
+    li $t9,'B' ; sb $t9,res_letra ; b _clasfin
+_ponerC:
+    li $t9,'C' ; sb $t9,res_letra
+_clasfin:
+
+    # Extra: si promedio==100, salto de línea
+    li $t8,100
+    beq $s2,$t8,_linea_extra
+    nop
+    b _tratamiento_pila
+_linea_extra:
+    jal NuevaLinea
+    b _tratamiento_pila
+
+# [j] ---------- #TRATAMIENTO DE PILA ----------
+_tratamiento_pila:
+    addiu $sp,$sp,-4 ; sw $t0,0($sp)      # guardar 1º
+    addiu $sp,$sp,-4 ; sw $t1,0($sp)      # guardar 2º
+
+    # Llamada con pila “ocupada” (demo)
+    move $a0,$t0 ; move $a1,$t1 ; li $a2,0
+    addiu $sp,$sp,-4 ; sw $ra,0($sp)
+    jal Operacion
+    lw $ra,0($sp) ; addiu $sp,$sp,4
+
+    lw $t1,0($sp) ; addiu $sp,$sp,4       # restaurar
+    lw $t0,0($sp) ; addiu $sp,$sp,4
+    b _impresiones
+
+# [c] Salida en todos los formatos
+_impresiones:
+    jal NuevaLinea
+    li $v0,4 ; la $a0,msj_alumno ; syscall
+    li $v0,4 ; la $a0,buf_nombre ; syscall
+
+    li $v0,4 ; la $a0,msj_total ; syscall
+    lw $a0,res_total ; li $v0,1 ; syscall
+
+    li $v0,4 ; la $a0,msj_resta ; syscall
+    lw $a0,res_resta_demo ; li $v0,1 ; syscall
+
+    li $v0,4 ; la $a0,msj_prom_base ; syscall
+    lw $a0,res_promedio_base ; li $v0,1 ; syscall
+    li $v0,4 ; la $a0,msj_resto ; syscall
+    lw $a0,res_resto_div ; li $v0,1 ; syscall
+
+    li $v0,4 ; la $a0,msj_prom_doble ; syscall
+    mov.d $f12,$f6 ; li $v0,3 ; syscall
+
+    li $v0,4 ; la $a0,msj_letra ; syscall
+    lb $a0,res_letra ; li $v0,11 ; syscall
+
+    li $v0,4 ; la $a0,msj_fin ; syscall
+    li $v0,10 ; syscall
+
+# ----------------------------------------------
+# [g] Función: imprime '\n' (guardar $ra en pila)
+# ----------------------------------------------
+NuevaLinea:
+    addiu $sp,$sp,-4 ; sw $ra,0($sp)
+    lb $a0,c_nl ; li $v0,11 ; syscall
+    lw $ra,0($sp) ; addiu $sp,$sp,4
+    jr $ra
+
+# --------------------------------------------------------
+# [g][f][e][b] Operacion(a0,a1,a2)->v0  (0:+ 1:- 2:* 3:/)
+# --------------------------------------------------------
+Operacion:
+    addiu $sp,$sp,-8
+    sw $ra,4($sp) ; sw $s1,0($sp)
+
+    li $t0,0 ; beq $a2,$t0,_op_suma
+    li $t0,1 ; beq $a2,$t0,_op_resta
+    li $t0,2 ; beq $a2,$t0,_op_mul
+    li $t0,3 ; beq $a2,$t0,_op_div
+
+_op_suma:  addu $v0,$a0,$a1 ; b _op_fin
+_op_resta: subu $v0,$a0,$a1 ; b _op_fin
+_op_mul:   mult $a0,$a1 ; mflo $v0 ; b _op_fin
+_op_div:   beq $a1,$zero,_op_div_zero
+           div $a0,$a1 ; mflo $v0 ; b _op_fin
+_op_div_zero: move $v0,$zero
+
+_op_fin:
+    lw $s1,0($sp) ; lw $ra,4($sp)
+    addiu $sp,$sp,8
+    jr $ra
 
