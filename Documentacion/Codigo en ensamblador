@@ -13,7 +13,7 @@ peso_examen:       .word 2
 # [a] Entrada cadena
 buf_nombre:        .space 64
 
-# [d] Bono double (alineado a 8 bytes)
+# [d] Bono double (alineado a 8B)
         .align 3
 bono:              .double 0.5
 
